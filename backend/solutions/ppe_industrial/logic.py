@@ -3,7 +3,7 @@ existing pipeline.ppe_logic.PPEAssociator / pipeline.smoother.TemporalSmoother
 unchanged. No algorithm changes, only wrapped in the BaseSolution contract."""
 
 import os
-from solutions.base_solution import BaseSolution
+from framework.common.base_solution import BaseSolution
 from pipeline.ppe_logic import PPEAssociator
 from pipeline.smoother import TemporalSmoother
 

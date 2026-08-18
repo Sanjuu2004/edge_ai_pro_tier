@@ -3,7 +3,7 @@ same debounce pattern as the Lite tier's healthcare solution (standalone
 copy, no cross-import)."""
 
 import os
-from solutions.base_solution import BaseSolution
+from framework.common.base_solution import BaseSolution
 
 BASE_DIR = "/home/ksanju/ppe_system/deepstream_ppe_poc/backend"
 

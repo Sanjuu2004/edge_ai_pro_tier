@@ -5,7 +5,7 @@ imported from ppe_platform_lite)."""
 
 import os
 from collections import deque
-from solutions.base_solution import BaseSolution
+from framework.common.base_solution import BaseSolution
 
 BASE_DIR = "/home/ksanju/ppe_system/deepstream_ppe_poc/backend"
 
