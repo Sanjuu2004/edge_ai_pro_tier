@@ -8,7 +8,7 @@ from platform_core.app_factory import create_app
 from solutions.driver_monitoring.logic import DriverMonitoringSolution
 
 BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-FRONTEND_DIR = os.path.join(BACKEND_DIR, "..", "frontend")
+FRONTEND_DIR = os.path.join(BACKEND_DIR, "..", "framework", "dashboard")
 
 app = create_app(
     solution_class=DriverMonitoringSolution,
