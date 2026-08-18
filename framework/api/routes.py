@@ -35,8 +35,42 @@ def register_camera_routes(router: APIRouter, ctx):
     def get_manifest():
         return {"active": ctx.solution_name, "manifest": ctx.manifest}
 
+def register_health_routes(router: APIRouter, ctx):
+    from framework.device.health import get_system_health
+
+    @router.get("/api/alerts")
+    def get_alerts():
+        combined = []
+        for slot, m in ctx.managers.items():
+            for a in m.event_mgr.get_history():
+                combined.append({**a, "camera": slot})
+        return sorted(combined, key=lambda x: x["timestamp"], reverse=True)[:100]
+
+    @router.get("/api/stats")
+    def get_stats():
+        total = {"persons": 0, "violations": 0, "total_alerts": 0, "fps": 0}
+        for m in ctx.managers.values():
+            s = m.get_latest_stats()
+            total["persons"] += s["persons"]
+            total["violations"] += s["violations"]
+            total["fps"] += s["fps"]
+            total["total_alerts"] += len(m.event_mgr.history)
+        return total
+
+    @router.get("/api/health")
+    def system_health():
+        health = get_system_health()
+        health["streams"] = {
+            str(slot): {"running": m.is_running(), "device": m.device, "stats": m.get_latest_stats()}
+            for slot, m in ctx.managers.items()
+        }
+        health["active_streams"] = sum(1 for m in ctx.managers.values() if m.is_running())
+        health["active_solution"] = ctx.solution_name
+        health["tier"] = "pro"
+        return health
 
 def build_router(ctx) -> APIRouter:
     router = APIRouter()
     register_camera_routes(router, ctx)
+    register_health_routes(router, ctx)
     return router

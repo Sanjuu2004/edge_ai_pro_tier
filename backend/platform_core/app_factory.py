@@ -21,8 +21,9 @@ execution model:
 Route migration to framework/api/routes.py is in progress -- routes
 are being moved out one group at a time. Currently migrated:
   - Cameras / manifest (/api/cameras, /api/solutions, /api/solutions/manifest)
-Still defined locally below: upload, live streams, alerts/stats/health,
-screenshots, static frontend.
+  - Alerts / stats / health (/api/alerts, /api/stats, /api/health)
+Still defined locally below: upload, live streams, screenshots,
+static frontend.
 """
 import sys
 import os as _os
@@ -136,6 +137,8 @@ def create_app(solution_class, base_dir, frontend_dir, app_title=None,
         os.makedirs(f"{base_dir}/screenshots/{solution_name}/slot{m.slot_id}", exist_ok=True)
         os.makedirs(f"{base_dir}/temp/gallery/{solution_name}/slot{m.slot_id}", exist_ok=True)
 
+    ctx.managers = managers
+
     video_jobs = {}
     video_jobs_lock = threading.Lock()
 
@@ -149,7 +152,7 @@ def create_app(solution_class, base_dir, frontend_dir, app_title=None,
     class StartRequest(BaseModel):
         device: str
 
-    # ── Cameras / manifest ──────────────────────────────────────────
+    # ── Cameras / manifest / alerts / stats / health ──────────────────
     # Migrated to framework/api/routes.py — see build_router(ctx) below.
     app.include_router(build_router(ctx))
 
@@ -294,39 +297,6 @@ def create_app(solution_class, base_dir, frontend_dir, app_title=None,
                 await asyncio.sleep(0.03)
         except WebSocketDisconnect:
             pass
-
-    # ── Alerts / stats / health ───────────────────────────────────────
-
-    @app.get("/api/alerts")
-    def get_alerts():
-        combined = []
-        for slot, m in managers.items():
-            for a in m.event_mgr.get_history():
-                combined.append({**a, "camera": slot})
-        return sorted(combined, key=lambda x: x["timestamp"], reverse=True)[:100]
-
-    @app.get("/api/stats")
-    def get_stats():
-        total = {"persons": 0, "violations": 0, "total_alerts": 0, "fps": 0}
-        for m in managers.values():
-            s = m.get_latest_stats()
-            total["persons"] += s["persons"]
-            total["violations"] += s["violations"]
-            total["fps"] += s["fps"]
-            total["total_alerts"] += len(m.event_mgr.history)
-        return total
-
-    @app.get("/api/health")
-    def system_health():
-        health = get_system_health()
-        health["streams"] = {
-            str(slot): {"running": m.is_running(), "device": m.device, "stats": m.get_latest_stats()}
-            for slot, m in managers.items()
-        }
-        health["active_streams"] = sum(1 for m in managers.values() if m.is_running())
-        health["active_solution"] = solution_name
-        health["tier"] = "pro"
-        return health
 
     # ── Screenshots ───────────────────────────────────────────────────
 
