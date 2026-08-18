@@ -68,9 +68,67 @@ def register_health_routes(router: APIRouter, ctx):
         health["active_solution"] = ctx.solution_name
         health["tier"] = "pro"
         return health
+def register_screenshot_routes(router: APIRouter, ctx):
+    import os
+
+    @router.get("/api/screenshots")
+    def get_screenshots():
+        items = []
+        for slot, m in ctx.managers.items():
+            d = m.event_mgr.screenshot_dir
+            if not os.path.isdir(d):
+                continue
+            for fname in sorted(os.listdir(d), reverse=True):
+                if not fname.endswith(".jpg"):
+                    continue
+                parts = fname.replace(".jpg", "").split("_", 2)
+                ts = int(parts[0]) if parts[0].isdigit() else 0
+                pid = parts[1] if len(parts) > 1 else "?"
+                vtype = parts[2] if len(parts) > 2 else "unknown"
+                items.append({
+                    "filename": fname,
+                    "url": f"/screenshots/{ctx.solution_name}/slot{slot}/{fname}",
+                    "person_id": pid, "violation_type": vtype,
+                    "timestamp": ts, "camera": slot,
+                })
+
+        with ctx.video_jobs_lock:
+            job_ids = list(ctx.video_jobs.keys())
+
+        for job_id in job_ids:
+            d = f"{ctx.base_dir}/screenshots/{ctx.solution_name}/upload_{job_id}"
+            if not os.path.isdir(d):
+                continue
+            for fname in sorted(os.listdir(d), reverse=True):
+                if not fname.endswith(".jpg"):
+                    continue
+                parts = fname.replace(".jpg", "").split("_", 2)
+                ts = int(parts[0]) if parts[0].isdigit() else 0
+                pid = parts[1] if len(parts) > 1 else "?"
+                vtype = parts[2] if len(parts) > 2 else "unknown"
+                items.append({
+                    "filename": fname,
+                    "url": f"/screenshots/{ctx.solution_name}/upload_{job_id}/{fname}",
+                    "person_id": pid, "violation_type": vtype,
+                    "timestamp": ts, "camera": f"upload:{job_id[:8]}",
+                })
+
+        return sorted(items, key=lambda x: x["timestamp"], reverse=True)
+
+    @router.delete("/api/screenshots")
+    def clear_screenshots():
+        for slot, m in ctx.managers.items():
+            d = m.event_mgr.screenshot_dir
+            if os.path.isdir(d):
+                for fname in os.listdir(d):
+                    if fname.endswith(".jpg"):
+                        os.remove(os.path.join(d, fname))
+            m.event_mgr.history = []
+        return {"deleted": True}
 
 def build_router(ctx) -> APIRouter:
     router = APIRouter()
     register_camera_routes(router, ctx)
     register_health_routes(router, ctx)
+    register_screenshot_routes(router, ctx)
     return router
