@@ -45,7 +45,7 @@ from pydantic import BaseModel
 
 from pipeline.stream_manager import StreamManager
 from pipeline.video_processor import VideoProcessor
-from alerts.mqtt_publisher import MQTTPublisher
+from framework.mqtt.mqtt_publisher import MQTTPublisher
 from alerts.speaker_alert import SpeakerAlert
 from platform_core.data_manager import DataManager
 from framework.device.health import get_system_health
