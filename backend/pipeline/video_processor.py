@@ -11,7 +11,7 @@ from gi.repository import Gst
 
 from .callbacks import make_osd_probe
 from .metrics import Metrics
-from .event_manager import EventManager
+from framework.events.event_manager import EventManager
 
 
 STREAM_WIDTH = 640

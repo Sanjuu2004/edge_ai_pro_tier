@@ -15,7 +15,7 @@ gi.require_version("Gst", "1.0")
 from gi.repository import Gst
 
 import pyds
-from .tracker import ByteTracker
+from framework.tracking.tracker import ByteTracker
 
 TONE_COLORS = {
     "danger": (1.0, 0.0, 0.0, 1.0),
