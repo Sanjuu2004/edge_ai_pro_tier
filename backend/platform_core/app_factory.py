@@ -17,6 +17,12 @@ execution model:
   - StreamManager/VideoProcessor own actual GStreamer pipelines, not
     Python capture threads -- stop() tears down the pipeline, not just
     joins a thread.
+
+Route migration to framework/api/routes.py is in progress -- routes
+are being moved out one group at a time. Currently migrated:
+  - Cameras / manifest (/api/cameras, /api/solutions, /api/solutions/manifest)
+Still defined locally below: upload, live streams, alerts/stats/health,
+screenshots, static frontend.
 """
 import sys
 import os as _os
@@ -42,7 +48,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-
+from framework.api.routes import build_router
 from pipeline.stream_manager import StreamManager
 from pipeline.video_processor import VideoProcessor
 from framework.mqtt.mqtt_publisher import MQTTPublisher
@@ -84,6 +90,16 @@ def create_app(solution_class, base_dir, frontend_dir, app_title=None,
 
     solution_name = solution_class.name
     manifest = getattr(solution_class, "manifest", {})
+
+    # ── ctx: shared state passed to framework/api routes ──────────────
+    # Replaces closures for routes that have been migrated to
+    # framework/api/routes.py. As more route groups migrate, add
+    # whatever they need onto ctx here.
+    class _Ctx:
+        pass
+    ctx = _Ctx()
+    ctx.solution_name = solution_name
+    ctx.manifest = manifest
 
     UPLOAD_DIR = os.path.join(base_dir, "uploads")
     OUTPUT_DIR = os.path.join(base_dir, "outputs")
@@ -133,31 +149,9 @@ def create_app(solution_class, base_dir, frontend_dir, app_title=None,
     class StartRequest(BaseModel):
         device: str
 
-    # ── Cameras / manifest ───────────────────────────────────────────
-
-    @app.get("/api/cameras")
-    def list_cameras():
-        all_devices = sorted(glob.glob("/dev/video*"))
-
-        def _is_capture(path):
-            try:
-                out = subprocess.check_output(
-                    ["v4l2-ctl", "-d", path, "--info"], stderr=subprocess.DEVNULL, timeout=2,
-                ).decode()
-                device_caps_section = out.split("Device Caps")[-1]
-                return "Video Capture" in device_caps_section
-            except Exception:
-                return False
-
-        return {"cameras": [d for d in all_devices if _is_capture(d)]}
-
-    @app.get("/api/solutions")
-    def get_solution_info():
-        return {"available": [solution_name], "active": solution_name}
-
-    @app.get("/api/solutions/manifest")
-    def get_manifest():
-        return {"active": solution_name, "manifest": manifest}
+    # ── Cameras / manifest ──────────────────────────────────────────
+    # Migrated to framework/api/routes.py — see build_router(ctx) below.
+    app.include_router(build_router(ctx))
 
     # ── Video upload ──────────────────────────────────────────────────
 
