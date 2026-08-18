@@ -18,6 +18,11 @@ execution model:
     Python capture threads -- stop() tears down the pipeline, not just
     joins a thread.
 """
+import sys
+import os as _os
+_REPO_ROOT = _os.path.abspath(_os.path.join(_os.path.dirname(__file__), "..", ".."))
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
 
 import glob
 import json
