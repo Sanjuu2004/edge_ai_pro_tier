@@ -125,10 +125,105 @@ def register_screenshot_routes(router: APIRouter, ctx):
                         os.remove(os.path.join(d, fname))
             m.event_mgr.history = []
         return {"deleted": True}
+def register_upload_routes(router: APIRouter, ctx):
+    import os
+    import json
+    import uuid
+    import asyncio
+    from fastapi import HTTPException, WebSocket, WebSocketDisconnect, UploadFile, File
+    from fastapi.responses import FileResponse
+    from pipeline.video_processor import VideoProcessor
+
+    ALLOWED_VIDEO_EXTENSIONS = {".mp4", ".avi", ".mov", ".mkv", ".webm"}
+
+    @router.post("/api/upload")
+    async def upload_video(file: UploadFile = File(...)):
+        if ctx.any_camera_running():
+            raise HTTPException(409, "Stop live camera streams before uploading a video for processing.")
+
+        original_name = os.path.basename(file.filename or "video.mp4")
+        extension = os.path.splitext(original_name)[1].lower()
+        if extension not in ALLOWED_VIDEO_EXTENSIONS:
+            raise HTTPException(400, "Unsupported video format. Use MP4, AVI, MOV, MKV, or WEBM.")
+
+        file_id = uuid.uuid4().hex
+        saved_path = os.path.join(ctx.UPLOAD_DIR, f"{file_id}{extension}")
+
+        try:
+            with open(saved_path, "wb") as output:
+                while True:
+                    chunk = await file.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    output.write(chunk)
+        finally:
+            await file.close()
+
+        job_id = file_id
+        job = VideoProcessor(
+            job_id=job_id, video_path=saved_path, solution=ctx.solution_class(),
+            mqtt=ctx._mqtt, speaker=ctx._speaker, base_dir=ctx.base_dir,
+        )
+
+        with ctx.video_jobs_lock:
+            ctx.video_jobs[job_id] = job
+
+        try:
+            job.start()
+        except Exception as e:
+            raise HTTPException(500, f"Failed to start processing: {e}")
+
+        return {"status": "processing", "job_id": job_id, "solution": ctx.solution_name}
+
+    @router.websocket("/ws/process/{job_id}")
+    async def process_ws(websocket: WebSocket, job_id: str):
+        await websocket.accept()
+        job = ctx.video_jobs.get(job_id)
+        if job is None:
+            await websocket.send_text(json.dumps({"type": "error", "message": "Unknown job_id"}))
+            await websocket.close()
+            return
+
+        try:
+            while True:
+                frame = job.get_latest_jpeg()
+                if frame is not None:
+                    await websocket.send_bytes(frame)
+
+                stats = job.get_latest_stats()
+                alerts = job.pop_new_alerts()
+                progress = job.get_progress()
+
+                await websocket.send_text(json.dumps({
+                    "type": "stats", "progress": progress,
+                    "frame": job.frame_count, "total": job.total_frames,
+                    "persons": stats["persons"], "violations": stats["violations"],
+                    "fps": stats["fps"], "alerts": alerts,
+                }))
+
+                if job.done and progress >= 100:
+                    break
+                await asyncio.sleep(0.03)
+        except WebSocketDisconnect:
+            pass
+
+    @router.get("/api/download/{job_id}")
+    def download_annotated_video(job_id: str):
+        job = ctx.video_jobs.get(job_id)
+        if job is None:
+            raise HTTPException(404, "Unknown job_id")
+        if not job.done:
+            raise HTTPException(409, "Video is still processing. Please wait until it finishes.")
+        if not os.path.isfile(job.output_path):
+            raise HTTPException(404, "Annotated video not found (processing may have failed).")
+        return FileResponse(job.output_path, media_type="video/mp4",
+                             filename=f"annotated_{job_id[:8]}.mp4")
 
 def build_router(ctx) -> APIRouter:
     router = APIRouter()
     register_camera_routes(router, ctx)
     register_health_routes(router, ctx)
     register_screenshot_routes(router, ctx)
+    register_upload_routes(router, ctx)
+
     return router

@@ -102,6 +102,7 @@ def create_app(solution_class, base_dir, frontend_dir, app_title=None,
     ctx.solution_name = solution_name
     ctx.manifest = manifest
     ctx.base_dir = base_dir
+    ctx.solution_class = solution_class
 
     UPLOAD_DIR = os.path.join(base_dir, "uploads")
     OUTPUT_DIR = os.path.join(base_dir, "outputs")
@@ -110,6 +111,7 @@ def create_app(solution_class, base_dir, frontend_dir, app_title=None,
 
     for d in (UPLOAD_DIR, OUTPUT_DIR, SCREENSHOTS_DIR, DATA_DIR):
         os.makedirs(d, exist_ok=True)
+    ctx.UPLOAD_DIR = UPLOAD_DIR
 
     DB_PATH = os.path.join(DATA_DIR, "platform.db")
 
@@ -125,6 +127,8 @@ def create_app(solution_class, base_dir, frontend_dir, app_title=None,
         client_id=f"edge_ai_pro_{solution_name}",
     )
     _speaker = SpeakerAlert(cooldown_seconds=15)
+    ctx._mqtt = _mqtt
+    ctx._speaker = _speaker
 
     managers = {
         slot: StreamManager(
@@ -152,6 +156,8 @@ def create_app(solution_class, base_dir, frontend_dir, app_title=None,
         with video_jobs_lock:
             return any(j.running for j in video_jobs.values())
 
+    ctx.any_camera_running = any_camera_running
+
     class StartRequest(BaseModel):
         device: str
 
@@ -159,90 +165,6 @@ def create_app(solution_class, base_dir, frontend_dir, app_title=None,
     # Migrated to framework/api/routes.py — see build_router(ctx) below.
     app.include_router(build_router(ctx))
 
-    # ── Video upload ──────────────────────────────────────────────────
-
-    @app.post("/api/upload")
-    async def upload_video(file: UploadFile = File(...)):
-        if any_camera_running():
-            raise HTTPException(409, "Stop live camera streams before uploading a video for processing.")
-
-        original_name = os.path.basename(file.filename or "video.mp4")
-        extension = os.path.splitext(original_name)[1].lower()
-        if extension not in ALLOWED_VIDEO_EXTENSIONS:
-            raise HTTPException(400, "Unsupported video format. Use MP4, AVI, MOV, MKV, or WEBM.")
-
-        file_id = uuid.uuid4().hex
-        saved_path = os.path.join(UPLOAD_DIR, f"{file_id}{extension}")
-
-        try:
-            with open(saved_path, "wb") as output:
-                while True:
-                    chunk = await file.read(1024 * 1024)
-                    if not chunk:
-                        break
-                    output.write(chunk)
-        finally:
-            await file.close()
-
-        job_id = file_id
-        job = VideoProcessor(
-            job_id=job_id, video_path=saved_path, solution=solution_class(),
-            mqtt=_mqtt, speaker=_speaker, base_dir=base_dir,
-        )
-
-        with video_jobs_lock:
-            video_jobs[job_id] = job
-
-        try:
-            job.start()
-        except Exception as e:
-            raise HTTPException(500, f"Failed to start processing: {e}")
-
-        return {"status": "processing", "job_id": job_id, "solution": solution_name}
-
-    @app.websocket("/ws/process/{job_id}")
-    async def process_ws(websocket: WebSocket, job_id: str):
-        await websocket.accept()
-        job = video_jobs.get(job_id)
-        if job is None:
-            await websocket.send_text(json.dumps({"type": "error", "message": "Unknown job_id"}))
-            await websocket.close()
-            return
-
-        try:
-            while True:
-                frame = job.get_latest_jpeg()
-                if frame is not None:
-                    await websocket.send_bytes(frame)
-
-                stats = job.get_latest_stats()
-                alerts = job.pop_new_alerts()
-                progress = job.get_progress()
-
-                await websocket.send_text(json.dumps({
-                    "type": "stats", "progress": progress,
-                    "frame": job.frame_count, "total": job.total_frames,
-                    "persons": stats["persons"], "violations": stats["violations"],
-                    "fps": stats["fps"], "alerts": alerts,
-                }))
-
-                if job.done and progress >= 100:
-                    break
-                await asyncio.sleep(0.03)
-        except WebSocketDisconnect:
-            pass
-
-    @app.get("/api/download/{job_id}")
-    def download_annotated_video(job_id: str):
-        job = video_jobs.get(job_id)
-        if job is None:
-            raise HTTPException(404, "Unknown job_id")
-        if not job.done:
-            raise HTTPException(409, "Video is still processing. Please wait until it finishes.")
-        if not os.path.isfile(job.output_path):
-            raise HTTPException(404, "Annotated video not found (processing may have failed).")
-        return FileResponse(job.output_path, media_type="video/mp4",
-                             filename=f"annotated_{job_id[:8]}.mp4")
 
     # ── Live camera streams ───────────────────────────────────────────
 
