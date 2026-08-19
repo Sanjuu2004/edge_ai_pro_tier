@@ -219,11 +219,77 @@ def register_upload_routes(router: APIRouter, ctx):
         return FileResponse(job.output_path, media_type="video/mp4",
                              filename=f"annotated_{job_id[:8]}.mp4")
 
+def register_stream_routes(router: APIRouter, ctx):
+    import json
+    import asyncio
+    from fastapi import HTTPException, WebSocket, WebSocketDisconnect
+    from pydantic import BaseModel
+
+    class StartRequest(BaseModel):
+        device: str
+
+    @router.post("/api/stream/{slot}/start")
+    def start_stream(slot: int, req: StartRequest):
+        if slot not in ctx.managers:
+            raise HTTPException(404, "Invalid slot")
+        if ctx.any_job_running():
+            raise HTTPException(409, "Stop video upload processing before starting a live camera.")
+        try:
+            ctx.managers[slot].start(req.device)
+        except Exception as e:
+            raise HTTPException(500, str(e))
+        return {"status": "started", "slot": slot, "device": req.device}
+
+    @router.post("/api/stream/{slot}/stop")
+    def stop_stream(slot: int):
+        if slot not in ctx.managers:
+            raise HTTPException(404, "Invalid slot")
+        ctx.managers[slot].stop()
+        return {"status": "stopped", "slot": slot}
+
+    @router.get("/api/stream/{slot}/status")
+    def stream_status(slot: int):
+        if slot not in ctx.managers:
+            raise HTTPException(404, "Invalid slot")
+        m = ctx.managers[slot]
+        return {"running": m.is_running(), "device": m.device}
+
+    @router.websocket("/ws/stream/{slot}")
+    async def stream_ws(websocket: WebSocket, slot: int):
+        await websocket.accept()
+        if slot not in ctx.managers:
+            await websocket.send_text(json.dumps({"type": "error", "message": "Invalid slot"}))
+            await websocket.close()
+            return
+
+        m = ctx.managers[slot]
+        try:
+            while True:
+                if not m.is_running():
+                    await websocket.send_text(json.dumps(
+                        {"type": "stats", "persons": 0, "violations": 0, "fps": 0, "alerts": []}
+                    ))
+                    await asyncio.sleep(0.2)
+                    continue
+
+                frame = m.get_latest_jpeg()
+                if frame is not None:
+                    await websocket.send_bytes(frame)
+
+                stats = m.get_latest_stats()
+                alerts = m.pop_new_alerts()
+                await websocket.send_text(json.dumps({"type": "stats", **stats, "alerts": alerts}))
+                await asyncio.sleep(0.03)
+        except WebSocketDisconnect:
+            pass
+
+
 def build_router(ctx) -> APIRouter:
     router = APIRouter()
     register_camera_routes(router, ctx)
     register_health_routes(router, ctx)
     register_screenshot_routes(router, ctx)
     register_upload_routes(router, ctx)
+    register_stream_routes(router, ctx)
 
     return router

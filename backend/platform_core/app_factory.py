@@ -157,71 +157,13 @@ def create_app(solution_class, base_dir, frontend_dir, app_title=None,
             return any(j.running for j in video_jobs.values())
 
     ctx.any_camera_running = any_camera_running
-
-    class StartRequest(BaseModel):
-        device: str
+    ctx.any_job_running = any_job_running
+    
 
     # ── Cameras / manifest / alerts / stats / health ──────────────────
     # Migrated to framework/api/routes.py — see build_router(ctx) below.
     app.include_router(build_router(ctx))
 
-
-    # ── Live camera streams ───────────────────────────────────────────
-
-    @app.post("/api/stream/{slot}/start")
-    def start_stream(slot: int, req: StartRequest):
-        if slot not in managers:
-            raise HTTPException(404, "Invalid slot")
-        if any_job_running():
-            raise HTTPException(409, "Stop video upload processing before starting a live camera.")
-        try:
-            managers[slot].start(req.device)
-        except Exception as e:
-            raise HTTPException(500, str(e))
-        return {"status": "started", "slot": slot, "device": req.device}
-
-    @app.post("/api/stream/{slot}/stop")
-    def stop_stream(slot: int):
-        if slot not in managers:
-            raise HTTPException(404, "Invalid slot")
-        managers[slot].stop()
-        return {"status": "stopped", "slot": slot}
-
-    @app.get("/api/stream/{slot}/status")
-    def stream_status(slot: int):
-        if slot not in managers:
-            raise HTTPException(404, "Invalid slot")
-        m = managers[slot]
-        return {"running": m.is_running(), "device": m.device}
-
-    @app.websocket("/ws/stream/{slot}")
-    async def stream_ws(websocket: WebSocket, slot: int):
-        await websocket.accept()
-        if slot not in managers:
-            await websocket.send_text(json.dumps({"type": "error", "message": "Invalid slot"}))
-            await websocket.close()
-            return
-
-        m = managers[slot]
-        try:
-            while True:
-                if not m.is_running():
-                    await websocket.send_text(json.dumps(
-                        {"type": "stats", "persons": 0, "violations": 0, "fps": 0, "alerts": []}
-                    ))
-                    await asyncio.sleep(0.2)
-                    continue
-
-                frame = m.get_latest_jpeg()
-                if frame is not None:
-                    await websocket.send_bytes(frame)
-
-                stats = m.get_latest_stats()
-                alerts = m.pop_new_alerts()
-                await websocket.send_text(json.dumps({"type": "stats", **stats, "alerts": alerts}))
-                await asyncio.sleep(0.03)
-        except WebSocketDisconnect:
-            pass
 
     # ── Static frontend ───────────────────────────────────────────────
 
