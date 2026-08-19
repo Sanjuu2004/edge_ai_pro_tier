@@ -5,7 +5,7 @@ Run:
 """
 import os
 from platform_core.app_factory import create_app
-from solutions.healthcare_monitoring.logic import HealthcareMonitoringSolution
+from applications.healthcare.logic import HealthcareMonitoringSolution
 
 BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 FRONTEND_DIR = os.path.join(BACKEND_DIR, "..", "framework", "dashboard")
