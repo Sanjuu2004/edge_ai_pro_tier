@@ -7,7 +7,7 @@ import os
 from collections import deque
 from framework.common.base_solution import BaseSolution
 
-BASE_DIR = "/home/ksanju/ppe_system/deepstream_ppe_poc/backend"
+CONFIGS_DIR = "/home/ksanju/ppe_system/deepstream_ppe_poc/configs"
 
 
 def _best_of(detections, cls_name):
@@ -76,7 +76,7 @@ class DriverMonitoringSolution(BaseSolution):
     name = "driver_monitoring"
     requires_tracking = False
     class_id_to_name = {0: "Open Eye", 1: "Closed Eye", 2: "Cigarette", 3: "Phone", 4: "Seatbelt"}
-    pgie_config_path = f"{BASE_DIR}/config/config_infer_primary_driver.txt"
+    pgie_config_path = f"{CONFIGS_DIR}/config_infer_primary_driver.txt"
 
     manifest = {
         "icon": "🚗",
