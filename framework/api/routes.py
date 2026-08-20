@@ -133,8 +133,11 @@ def register_upload_routes(router: APIRouter, ctx):
     from fastapi import HTTPException, WebSocket, WebSocketDisconnect, UploadFile, File
     from fastapi.responses import FileResponse
     from pipeline.video_processor import VideoProcessor
+    from framework.configuration.config_loader import load_platform_config
 
-    ALLOWED_VIDEO_EXTENSIONS = {".mp4", ".avi", ".mov", ".mkv", ".webm"}
+    _platform_config = load_platform_config()
+    ALLOWED_VIDEO_EXTENSIONS = set(_platform_config["platform"]["allowed_video_extensions"])
+
 
     @router.post("/api/upload")
     async def upload_video(file: UploadFile = File(...)):
