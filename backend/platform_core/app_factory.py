@@ -125,11 +125,11 @@ def create_app(solution_class, base_dir, frontend_dir, app_title=None,
 
     _data_manager = DataManager(db_path=DB_PATH)
     _mqtt = MQTTPublisher(
-        broker=os.getenv("MQTT_BROKER", "localhost"),
+        broker=os.getenv("MQTT_BROKER", _platform_config["mqtt"]["broker"]),
         topic=mqtt_topic or f"{solution_name}/alerts",
-        client_id=f"edge_ai_pro_{solution_name}",
+        client_id=f"{_platform_config['mqtt']['client_id_prefix']}_{solution_name}",
     )
-    _speaker = SpeakerAlert(cooldown_seconds=15)
+    _speaker = SpeakerAlert(cooldown_seconds=_platform_config["speaker"]["cooldown_seconds"])
     ctx._mqtt = _mqtt
     ctx._speaker = _speaker
 
