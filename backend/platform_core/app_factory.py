@@ -56,10 +56,13 @@ from framework.mqtt.mqtt_publisher import MQTTPublisher
 from framework.alerts.speaker_alert import SpeakerAlert
 from framework.database.data_manager import DataManager
 from framework.device.health import get_system_health
+from framework.configuration.config_loader import load_platform_config
 
 Gst.init(None)
 
-MAX_SLOTS = 2
+_platform_config = load_platform_config()
+MAX_SLOTS = _platform_config["platform"]["max_camera_slots"]
+
 ALLOWED_VIDEO_EXTENSIONS = {".mp4", ".avi", ".mov", ".mkv", ".webm"}
 
 _glib_loop_started = False
