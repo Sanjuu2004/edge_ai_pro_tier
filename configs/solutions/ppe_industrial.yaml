@@ -2,3 +2,5 @@ name: ppe_industrial
 port: 8103
 app_title: "PPE Industrial Safety (Pro)"
 pgie_config_file: config_infer_primary_ppe.txt
+module: applications.ppe_detection.logic
+class: PPEIndustrialSolution
