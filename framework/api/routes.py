@@ -316,6 +316,14 @@ def register_model_routes(router: APIRouter, ctx):
             "running": ctx.managers[slot].is_running(),
         }
 
+    @router.get("/api/camera/{slot}/manifest")
+    def get_slot_manifest(slot: int):
+        if slot not in ctx.managers:
+            raise HTTPException(404, "Invalid slot")
+        m = ctx.managers[slot]
+        manifest = getattr(type(m.solution), "manifest", {})
+        return {"slot": slot, "active": m.solution.name, "manifest": manifest}
+
 def build_router(ctx) -> APIRouter:
     router = APIRouter()
     register_camera_routes(router, ctx)
