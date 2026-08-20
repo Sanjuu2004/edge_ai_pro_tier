@@ -7,14 +7,14 @@ from framework.common.base_solution import BaseSolution
 from pipeline.ppe_logic import PPEAssociator
 from pipeline.smoother import TemporalSmoother
 
-BASE_DIR = "/home/ksanju/ppe_system/deepstream_ppe_poc/backend"
+CONFIGS_DIR = "/home/ksanju/ppe_system/deepstream_ppe_poc/configs"
 
 
 class PPEIndustrialSolution(BaseSolution):
     name = "ppe_industrial"
     requires_tracking = True
     class_id_to_name = {0: "helmet", 1: "person", 2: "vest"}
-    pgie_config_path = f"{BASE_DIR}/config/config_infer_primary_ppe.txt"
+    pgie_config_path = f"{CONFIGS_DIR}/config_infer_primary_ppe.txt"
 
     manifest = {
         "icon": "🛡️",
