@@ -5,7 +5,7 @@ copy, no cross-import)."""
 import os
 from framework.common.base_solution import BaseSolution
 
-BASE_DIR = "/home/ksanju/ppe_system/deepstream_ppe_poc/backend"
+CONFIGS_DIR = "/home/ksanju/ppe_system/deepstream_ppe_poc/configs"
 
 
 class OccupancyDebouncer:
@@ -35,7 +35,7 @@ class HealthcareMonitoringSolution(BaseSolution):
     name = "healthcare_monitoring"
     requires_tracking = True
     class_id_to_name = {0: "person"}
-    pgie_config_path = f"{BASE_DIR}/config/config_infer_primary_healthcare.txt"
+    pgie_config_path = f"{CONFIGS_DIR}/config_infer_primary_healthcare.txt"
 
     manifest = {
         "icon": "🏥",
