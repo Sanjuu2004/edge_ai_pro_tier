@@ -286,6 +286,35 @@ def register_stream_routes(router: APIRouter, ctx):
         except WebSocketDisconnect:
             pass
 
+def register_model_routes(router: APIRouter, ctx):
+    from fastapi import HTTPException
+    from pydantic import BaseModel
+    from framework.model.model_manager import ModelManager, list_available_solutions
+
+    class SolutionSwitchRequest(BaseModel):
+        solution_name: str
+
+    @router.get("/api/solutions/available")
+    def get_available_solutions():
+        return {"available": list_available_solutions()}
+
+    @router.post("/api/camera/{slot}/solution")
+    def switch_camera_solution(slot: int, req: SolutionSwitchRequest):
+        if slot not in ctx.managers:
+            raise HTTPException(404, "Invalid slot")
+        try:
+            solution_instance, _ = ModelManager.load(req.solution_name)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+
+        ctx.managers[slot].swap_solution(solution_instance)
+
+        return {
+            "status": "switched",
+            "slot": slot,
+            "solution": req.solution_name,
+            "running": ctx.managers[slot].is_running(),
+        }
 
 def build_router(ctx) -> APIRouter:
     router = APIRouter()
@@ -294,5 +323,6 @@ def build_router(ctx) -> APIRouter:
     register_screenshot_routes(router, ctx)
     register_upload_routes(router, ctx)
     register_stream_routes(router, ctx)
+    register_model_routes(router, ctx)
 
     return router
