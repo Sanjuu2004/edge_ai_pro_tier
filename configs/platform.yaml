@@ -1,0 +1,16 @@
+# Platform-wide settings shared across all Pro-tier products.
+platform:
+  max_camera_slots: 2
+  allowed_video_extensions:
+    - .mp4
+    - .avi
+    - .mov
+    - .mkv
+    - .webm
+
+mqtt:
+  broker: localhost
+  client_id_prefix: edge_ai_pro
+
+speaker:
+  cooldown_seconds: 15

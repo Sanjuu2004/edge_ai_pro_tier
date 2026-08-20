@@ -1,0 +1,4 @@
+name: driver_monitoring
+port: 8104
+app_title: "Driver Monitoring (Pro)"
+pgie_config_file: config_infer_primary_driver.txt

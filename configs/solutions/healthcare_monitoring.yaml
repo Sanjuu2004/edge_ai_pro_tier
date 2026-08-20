@@ -1,0 +1,4 @@
+name: healthcare_monitoring
+port: 8105
+app_title: "Healthcare Monitoring (Pro)"
+pgie_config_file: config_infer_primary_healthcare.txt
