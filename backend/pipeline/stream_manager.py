@@ -37,7 +37,7 @@ class StreamManager:
     def __init__(self, slot_id, solution, mqtt=None, speaker=None,
                  base_dir="/home/ksanju/ppe_system/deepstream_ppe_poc/backend"):
         self.slot_id = slot_id
-        self.solution = solution
+        self.base_dir = base_dir
         self.pipeline = None
         self.device = None
         self.running = False
@@ -46,22 +46,55 @@ class StreamManager:
         self.mqtt = mqtt
         self.speaker = speaker
 
-        self.event_mgr = EventManager(
-            screenshot_dir=f"{base_dir}/screenshots/{solution.name}/slot{slot_id}",
-            cooldown_seconds=30,
-        )
-
-        from alerts.violation_gallery import ViolationGallery
-        self.gallery = ViolationGallery(
-            save_dir=f"{base_dir}/temp/gallery/{solution.name}/slot{slot_id}",
-            max_per_person=5,
-        )
-
         self._lock = threading.Lock()
         self._latest_jpeg = None
         self._latest_stats = {"persons": 0, "violations": 0, "fps": 0}
         self._pending_alerts = []
         self._broadcast_queue = []
+
+        self.bind_solution(solution)
+
+    def bind_solution(self, solution):
+        """
+        Assign (or reassign) this slot's Solution instance, rebuilding
+        its EventManager/ViolationGallery so no debounce state or alert
+        history leaks from a previously bound solution. Safe to call
+        whether the slot is running or idle -- it does NOT touch the
+        pipeline. Callers that need a *live* swap must stop() first,
+        call this, then start() again (see swap_solution()).
+        """
+        self.solution = solution
+
+        self.event_mgr = EventManager(
+            screenshot_dir=f"{self.base_dir}/screenshots/{solution.name}/slot{self.slot_id}",
+            cooldown_seconds=30,
+        )
+
+        from alerts.violation_gallery import ViolationGallery
+        self.gallery = ViolationGallery(
+            save_dir=f"{self.base_dir}/temp/gallery/{solution.name}/slot{self.slot_id}",
+            max_per_person=5,
+        )
+
+    def swap_solution(self, solution):
+        """
+        Rebind this slot to a different Solution. If the slot is
+        currently running, this stops the pipeline, rebinds, and
+        restarts on the same device -- reusing the exact stop()/start()
+        path already proven by every live stream start/stop cycle this
+        session, rather than reconfiguring nvinfer on a PLAYING
+        pipeline. If the slot is idle, this just rebinds (no pipeline
+        activity at all).
+        """
+        was_running = self.running
+        device = self.device
+        if was_running:
+            self.stop()
+
+        self.bind_solution(solution)
+
+        if was_running:
+            self.start(device)
 
     def is_running(self):
         return self.running
