@@ -41,16 +41,23 @@ class MQTTPublisher:
         self.connected = False
         print("[MQTT] Disconnected from broker")
 
-    def publish(self, alert: dict):
+    def publish(self, alert: dict, topic: str = None):
+        # topic overrides self.topic for this call only -- lets a
+        # single shared MQTTPublisher (one per process) still publish
+        # under the correct per-solution topic even after a camera
+        # slot has been live-swapped to a different solution via
+        # ModelManager (see StreamManager.swap_solution), since
+        # self.topic alone would otherwise stay frozen at whatever the
+        # process booted with.
+        publish_topic = topic or self.topic
         payload = json.dumps({
             "person_id":      alert["person_id"],
             "violation_type": alert["violation_type"],
             "timestamp":      alert["timestamp"],
             "bbox":           alert["bbox"]
         })
-
         if self.connected:
-            result = self.client.publish(self.topic, payload, qos=1)
+            result = self.client.publish(publish_topic, payload, qos=1)
             if result.rc != mqtt.MQTT_ERR_SUCCESS:
                 print(f"[MQTT] Publish failed: {result.rc}")
         else:

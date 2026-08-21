@@ -161,7 +161,10 @@ class StreamManager:
                     sys.stderr.write(f"[slot {self.slot_id}] DataManager.log_event failed: {e}\n")
 
             if self.mqtt is not None:
-                self.mqtt.publish({**a, "camera": self.slot_id})
+                self.mqtt.publish(
+                    {**a, "camera": self.slot_id},
+                    topic=f"{self.solution.name}/alerts",
+                )
             if self.speaker is not None:
                 self.speaker.alert(self.slot_id, a["person_id"], a["violation_type"])
 

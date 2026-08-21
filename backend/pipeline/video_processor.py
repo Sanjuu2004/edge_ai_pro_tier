@@ -311,12 +311,15 @@ class VideoProcessor:
                         f"[upload {self.job_id}] DataManager.log_event failed: {e}\n"
                     )
             if self.mqtt is not None:
-                self.mqtt.publish({
-                    **a,
-                    "camera": (
-                        f"upload:{self.job_id}"
-                    ),
-                })
+                self.mqtt.publish(
+                    {
+                        **a,
+                        "camera": (
+                            f"upload:{self.job_id}"
+                        ),
+                    },
+                    topic=f"{self.solution.name}/alerts",
+                )
 
             if self.speaker is not None:
                 self.speaker.alert(
