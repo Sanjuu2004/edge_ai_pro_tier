@@ -7,6 +7,7 @@ from gi.repository import Gst
 from .callbacks import make_osd_probe
 from .metrics import Metrics
 from framework.events.event_manager import EventManager
+from framework.camera.camera_factory import CameraFactory
 
 STREAM_WIDTH = 640
 STREAM_HEIGHT = 480
@@ -40,6 +41,7 @@ class StreamManager:
         self.base_dir = base_dir
         self.pipeline = None
         self.device = None
+        self.source_type = "usb"
         self.running = False
         self.metrics = Metrics(camera_count=1)
 
@@ -89,13 +91,14 @@ class StreamManager:
         """
         was_running = self.running
         device = self.device
+        source_type = self.source_type
         if was_running:
             self.stop()
 
         self.bind_solution(solution)
 
         if was_running:
-            self.start(device)
+            self.start(device, source_type=source_type)
 
     def is_running(self):
         return self.running
@@ -184,29 +187,14 @@ class StreamManager:
             self.stop()
         return True
 
-    def start(self, device_path):
+    def start(self, device_path, source_type="usb"):
         if self.running:
             self.stop()
 
+        self.source_type = source_type
+
         Gst.init(None)
         pipeline = Gst.Pipeline()
-
-        source = _make_elm("v4l2src", f"src-{self.slot_id}")
-        source.set_property("device", device_path)
-
-        caps_v4l2 = _make_elm("capsfilter", f"v4l2caps-{self.slot_id}")
-        caps_v4l2.set_property(
-            "caps",
-            Gst.Caps.from_string(
-                f"video/x-raw, width={STREAM_WIDTH}, height={STREAM_HEIGHT}, framerate={FPS}/1"
-            ),
-        )
-
-        vidconv = _make_elm("videoconvert", f"vidconv-{self.slot_id}")
-        nvvidconv_in = _make_elm("nvvideoconvert", f"nvvidconv-in-{self.slot_id}")
-
-        caps_nvmm = _make_elm("capsfilter", f"nvmmcaps-{self.slot_id}")
-        caps_nvmm.set_property("caps", Gst.Caps.from_string("video/x-raw(memory:NVMM), format=NV12"))
 
         streammux = _make_elm("nvstreammux", f"mux-{self.slot_id}")
         streammux.set_property("width", STREAM_WIDTH)
@@ -246,19 +234,15 @@ class StreamManager:
         appsink.set_property("sync", False)
         appsink.connect("new-sample", self._on_new_sample)
 
-        for e in (source, caps_v4l2, vidconv, nvvidconv_in, caps_nvmm,
-                  streammux, pgie, nvvidconv_osd, caps_osd, nvdsosd,
+        for e in (streammux, pgie, nvvidconv_osd, caps_osd, nvdsosd,
                   nvvidconv_out, caps_i420, jpegenc, appsink):
             pipeline.add(e)
 
-        source.link(caps_v4l2)
-        caps_v4l2.link(vidconv)
-        vidconv.link(nvvidconv_in)
-        nvvidconv_in.link(caps_nvmm)
-
         sinkpad = streammux.get_request_pad("sink_0")
-        srcpad = caps_nvmm.get_static_pad("src")
-        srcpad.link(sinkpad)
+        CameraFactory.create(
+            pipeline, self.slot_id, self.source_type, device_path,
+            streammux, sinkpad,
+        )
 
         streammux.link(pgie)
         pgie.link(nvvidconv_osd)
