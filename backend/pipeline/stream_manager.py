@@ -35,7 +35,7 @@ class StreamManager:
     """
 
     def __init__(self, slot_id, solution, mqtt=None, speaker=None,
-                 base_dir="/home/ksanju/ppe_system/deepstream_ppe_poc/backend"):
+                 base_dir="/home/ksanju/ppe_system/deepstream_ppe_poc/backend",data_manager=None):
         self.slot_id = slot_id
         self.base_dir = base_dir
         self.pipeline = None
@@ -45,6 +45,7 @@ class StreamManager:
 
         self.mqtt = mqtt
         self.speaker = speaker
+        self.data_manager = data_manager
 
         self._lock = threading.Lock()
         self._latest_jpeg = None
@@ -145,6 +146,19 @@ class StreamManager:
         for a in ready_alerts:
             self.event_mgr.save_screenshot(a, jpeg_bytes)
             self.gallery.capture(a, jpeg_bytes)
+
+            if self.data_manager is not None:
+                try:
+                    self.data_manager.log_event(
+                        camera_slot=str(self.slot_id),
+                        solution=self.solution.name,
+                        event_type=a["violation_type"],
+                        person_id=a["person_id"],
+                        screenshot_path=a.get("screenshot"),
+                        timestamp=a["timestamp"],
+                    )
+                except Exception as e:
+                    sys.stderr.write(f"[slot {self.slot_id}] DataManager.log_event failed: {e}\n")
 
             if self.mqtt is not None:
                 self.mqtt.publish({**a, "camera": self.slot_id})

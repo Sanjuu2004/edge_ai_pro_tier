@@ -68,52 +68,45 @@ def register_health_routes(router: APIRouter, ctx):
         health["active_solution"] = ctx.solution_name
         health["tier"] = "pro"
         return health
+
 def register_screenshot_routes(router: APIRouter, ctx):
     import os
 
     @router.get("/api/screenshots")
     def get_screenshots():
+        # Reads structured events from DataManager (populated by
+        # StreamManager.log_event() at screenshot-save time) instead of
+        # reverse-parsing filenames -- fixes the bug where a person_id
+        # containing an underscore (e.g. "driver_seatbelt") broke the
+        # old split("_", 2) parsing.
+        if ctx.data_manager is None:
+            return []
+
+        rows = ctx.data_manager.get_recent_events(limit=200)
         items = []
-        for slot, m in ctx.managers.items():
-            d = m.event_mgr.screenshot_dir
-            if not os.path.isdir(d):
+        for row in rows:
+            camera_slot = row["camera_slot"]
+            fname = row["screenshot_path"]
+            if not fname:
                 continue
-            for fname in sorted(os.listdir(d), reverse=True):
-                if not fname.endswith(".jpg"):
-                    continue
-                parts = fname.replace(".jpg", "").split("_", 2)
-                ts = int(parts[0]) if parts[0].isdigit() else 0
-                pid = parts[1] if len(parts) > 1 else "?"
-                vtype = parts[2] if len(parts) > 2 else "unknown"
-                items.append({
-                    "filename": fname,
-                    "url": f"/screenshots/{ctx.solution_name}/slot{slot}/{fname}",
-                    "person_id": pid, "violation_type": vtype,
-                    "timestamp": ts, "camera": slot,
-                })
 
-        with ctx.video_jobs_lock:
-            job_ids = list(ctx.video_jobs.keys())
+            if camera_slot.startswith("upload_"):
+                url = f"/screenshots/{row['solution']}/{camera_slot}/{fname}"
+                camera = f"upload:{camera_slot[len('upload_'):][:8]}"
+            else:
+                url = f"/screenshots/{row['solution']}/slot{camera_slot}/{fname}"
+                camera = int(camera_slot) if camera_slot.isdigit() else camera_slot
 
-        for job_id in job_ids:
-            d = f"{ctx.base_dir}/screenshots/{ctx.solution_name}/upload_{job_id}"
-            if not os.path.isdir(d):
-                continue
-            for fname in sorted(os.listdir(d), reverse=True):
-                if not fname.endswith(".jpg"):
-                    continue
-                parts = fname.replace(".jpg", "").split("_", 2)
-                ts = int(parts[0]) if parts[0].isdigit() else 0
-                pid = parts[1] if len(parts) > 1 else "?"
-                vtype = parts[2] if len(parts) > 2 else "unknown"
-                items.append({
-                    "filename": fname,
-                    "url": f"/screenshots/{ctx.solution_name}/upload_{job_id}/{fname}",
-                    "person_id": pid, "violation_type": vtype,
-                    "timestamp": ts, "camera": f"upload:{job_id[:8]}",
-                })
+            items.append({
+                "filename": fname,
+                "url": url,
+                "person_id": row["person_id"],
+                "violation_type": row["event_type"],
+                "timestamp": row["timestamp"],
+                "camera": camera,
+            })
 
-        return sorted(items, key=lambda x: x["timestamp"], reverse=True)
+        return items
 
     @router.delete("/api/screenshots")
     def clear_screenshots():
@@ -124,7 +117,12 @@ def register_screenshot_routes(router: APIRouter, ctx):
                     if fname.endswith(".jpg"):
                         os.remove(os.path.join(d, fname))
             m.event_mgr.history = []
+
+        if ctx.data_manager is not None:
+            ctx.data_manager.clear_screenshot_paths()
+
         return {"deleted": True}
+
 def register_upload_routes(router: APIRouter, ctx):
     import os
     import json

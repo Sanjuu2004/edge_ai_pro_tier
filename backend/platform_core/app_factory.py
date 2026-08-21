@@ -124,6 +124,7 @@ def create_app(solution_class, base_dir, frontend_dir, app_title=None,
     )
 
     _data_manager = DataManager(db_path=DB_PATH)
+    ctx.data_manager = _data_manager
     _mqtt = MQTTPublisher(
         broker=os.getenv("MQTT_BROKER", _platform_config["mqtt"]["broker"]),
         topic=mqtt_topic or f"{solution_name}/alerts",
@@ -137,6 +138,7 @@ def create_app(solution_class, base_dir, frontend_dir, app_title=None,
         slot: StreamManager(
             slot_id=slot, solution=solution_class(),
             mqtt=_mqtt, speaker=_speaker, base_dir=base_dir,
+	    data_manager=_data_manager,
         )
         for slot in range(MAX_SLOTS)
     }
