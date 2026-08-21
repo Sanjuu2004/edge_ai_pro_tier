@@ -11,13 +11,12 @@ const TONE_STYLES = {
 
 function vtype(t) {
   const manifestTypes = (window.ACTIVE_MANIFEST && window.ACTIVE_MANIFEST.violation_types) || {};
-  const entry = manifestTypes[t];
-
+  const allTypes = window.ALL_VIOLATION_TYPES || {};
+  const entry = manifestTypes[t] || allTypes[t];
   if (entry) {
     const style = TONE_STYLES[entry.tone] || TONE_STYLES.danger;
     return { label: entry.label, icon: entry.icon || "⚠️", ...style };
   }
-
   return {
     label: String(t || "Violation").replaceAll("_", " "),
     icon: "⚠️",

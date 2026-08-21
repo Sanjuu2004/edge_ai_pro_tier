@@ -324,6 +324,15 @@ def register_model_routes(router: APIRouter, ctx):
         manifest = getattr(type(m.solution), "manifest", {})
         return {"slot": slot, "active": m.solution.name, "manifest": manifest}
 
+    @router.get("/api/solutions/{name}/manifest")
+    def get_solution_manifest_by_name(name: str):
+        try:
+            solution_instance, _ = ModelManager.load(name)
+        except ValueError as e:
+            raise HTTPException(404, str(e))
+        manifest = getattr(type(solution_instance), "manifest", {})
+        return {"name": name, "manifest": manifest}
+
 def build_router(ctx) -> APIRouter:
     router = APIRouter()
     register_camera_routes(router, ctx)

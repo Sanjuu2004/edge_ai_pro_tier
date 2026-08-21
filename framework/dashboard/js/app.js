@@ -14,6 +14,40 @@ let mountedPage = null;
 // is driven from. No hardcoded per-solution config lives in JS anymore.
 window.ACTIVE_MANIFEST = null;
 
+// Built once at boot from every registered solution's manifest, not
+// just the one this process booted as. Needed because ModelManager
+// lets a camera slot run a different solution live -- an alert for
+// e.g. "drowsy" arriving on a slot that was swapped to Driver
+// Monitoring must still render correctly even on a process that
+// booted as PPE. theme.js's vtype() checks this as a fallback.
+window.ALL_VIOLATION_TYPES = {};
+
+async function loadAllViolationTypes() {
+  try {
+    const res = await fetch("/api/solutions/available");
+    const data = await res.json();
+    const names = Array.isArray(data.available) ? data.available : [];
+
+    const results = await Promise.all(
+      names.map(name =>
+        fetch(`/api/solutions/${name}/manifest`)
+          .then(r => r.json())
+          .catch(() => null)
+      )
+    );
+
+    const merged = {};
+    for (const result of results) {
+      const types = result?.manifest?.violation_types || {};
+      Object.assign(merged, types);
+    }
+
+    window.ALL_VIOLATION_TYPES = merged;
+  } catch (error) {
+    console.error("[App] Failed to load violation types:", error);
+  }
+}
+
 function renderNav() {
   const nav = document.getElementById("nav-list");
   NAV.forEach(n => {
@@ -129,7 +163,10 @@ window.addEventListener("DOMContentLoaded", async () => {
   setInterval(updateClock, 1000);
   updateClock();
 
-  const typedText = await loadManifestAndApplyBranding();
+  const [typedText] = await Promise.all([
+    loadManifestAndApplyBranding(),
+    loadAllViolationTypes(),
+  ]);
 
   setTimeout(() => {
     document.getElementById("entry-content").style.animation = "fadeUp 0.8s cubic-bezier(0.16,1,0.3,1) forwards";
