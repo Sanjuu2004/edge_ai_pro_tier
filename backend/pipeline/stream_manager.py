@@ -70,7 +70,7 @@ class StreamManager:
             cooldown_seconds=30,
         )
 
-        from alerts.violation_gallery import ViolationGallery
+        from framework.alerts.violation_gallery import ViolationGallery
         self.gallery = ViolationGallery(
             save_dir=f"{self.base_dir}/temp/gallery/{solution.name}/slot{self.slot_id}",
             max_per_person=5,
