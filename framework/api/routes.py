@@ -163,7 +163,7 @@ def register_upload_routes(router: APIRouter, ctx):
         job_id = file_id
         job = VideoProcessor(
             job_id=job_id, video_path=saved_path, solution=ctx.solution_class(),
-            mqtt=ctx._mqtt, speaker=ctx._speaker, base_dir=ctx.base_dir,
+            mqtt=ctx._mqtt, speaker=ctx._speaker, base_dir=ctx.base_dir, data_manager=ctx.data_manager,
         )
 
         with ctx.video_jobs_lock:

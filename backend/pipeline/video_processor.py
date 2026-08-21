@@ -49,6 +49,7 @@ class VideoProcessor:
         mqtt=None,
         speaker=None,
         base_dir="/home/ksanju/ppe_system/deepstream_ppe_poc/backend",
+        data_manager=None,
     ):
         self.job_id = job_id
         self.video_path = video_path
@@ -63,13 +64,13 @@ class VideoProcessor:
 
         self.mqtt = mqtt
         self.speaker = speaker
-
+        self.data_manager = data_manager
         self.event_mgr = EventManager(
             screenshot_dir=f"{base_dir}/screenshots/{solution.name}/upload_{job_id}",
             cooldown_seconds=15,
         )
 
-        from alerts.violation_gallery import ViolationGallery
+        from framework.alerts.violation_gallery import ViolationGallery
 
         self.gallery = ViolationGallery(
             save_dir=f"{base_dir}/temp/gallery/{solution.name}/upload_{job_id}",
@@ -291,12 +292,24 @@ class VideoProcessor:
                 a,
                 jpeg_bytes,
             )
-
             self.gallery.capture(
                 a,
                 jpeg_bytes,
             )
-
+            if self.data_manager is not None:
+                try:
+                    self.data_manager.log_event(
+                        camera_slot=f"upload_{self.job_id}",
+                        solution=self.solution.name,
+                        event_type=a["violation_type"],
+                        person_id=a["person_id"],
+                        screenshot_path=a.get("screenshot"),
+                        timestamp=a["timestamp"],
+                    )
+                except Exception as e:
+                    sys.stderr.write(
+                        f"[upload {self.job_id}] DataManager.log_event failed: {e}\n"
+                    )
             if self.mqtt is not None:
                 self.mqtt.publish({
                     **a,
