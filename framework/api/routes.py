@@ -228,18 +228,23 @@ def register_stream_routes(router: APIRouter, ctx):
 
     class StartRequest(BaseModel):
         device: str
-
+        source_type: str = "usb"  # "usb" or "rtsp" -- defaults to usb
+                                   # for full backward compatibility with
+                                   # every existing caller that only sends
+                                   # "device" (see CameraFactory)
     @router.post("/api/stream/{slot}/start")
     def start_stream(slot: int, req: StartRequest):
         if slot not in ctx.managers:
             raise HTTPException(404, "Invalid slot")
         if ctx.any_job_running():
             raise HTTPException(409, "Stop video upload processing before starting a live camera.")
+        if req.source_type not in ("usb", "rtsp"):
+            raise HTTPException(400, f"Unknown source_type: {req.source_type!r}")
         try:
-            ctx.managers[slot].start(req.device)
+            ctx.managers[slot].start(req.device, source_type=req.source_type)
         except Exception as e:
             raise HTTPException(500, str(e))
-        return {"status": "started", "slot": slot, "device": req.device}
+        return {"status": "started", "slot": slot, "device": req.device, "source_type": req.source_type}
 
     @router.post("/api/stream/{slot}/stop")
     def stop_stream(slot: int):

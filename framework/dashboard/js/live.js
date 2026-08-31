@@ -34,6 +34,7 @@ const LivePage = (() => {
     return {
       slot,
       device: "",
+      sourceType: "usb", 
       running: false,
       connecting: false,
       websocket: null,
@@ -262,6 +263,7 @@ const LivePage = (() => {
           },
           body: JSON.stringify({
             device: slot.device,
+	    source_type: slot.sourceType,
           }),
         }
       );
@@ -778,21 +780,50 @@ const LivePage = (() => {
 
           <div class="camera-source-control">
 
-            <span class="source-type-badge">
-              📷 USB
-            </span>
-
             <select
-              id="camera-select-${slot.slot}"
+              id="source-type-select-${slot.slot}"
               class="camera-device-select"
               ${
                 slot.running || slot.connecting
                   ? "disabled"
                   : ""
               }
+              style="max-width:80px;"
             >
-              ${deviceOptions}
+              <option value="usb" ${slot.sourceType === "usb" ? "selected" : ""}>📷 USB</option>
+              <option value="rtsp" ${slot.sourceType === "rtsp" ? "selected" : ""}>🌐 RTSP</option>
             </select>
+
+            ${
+              slot.sourceType === "rtsp"
+                ? `
+                  <input
+                    id="camera-select-${slot.slot}"
+                    class="camera-device-select"
+                    type="text"
+                    placeholder="rtsp://user:pass@host:port/path"
+                    value="${escapeHtml(slot.device)}"
+                    ${
+                      slot.running || slot.connecting
+                        ? "disabled"
+                        : ""
+                    }
+                  />
+                `
+                : `
+                  <select
+                    id="camera-select-${slot.slot}"
+                    class="camera-device-select"
+                    ${
+                      slot.running || slot.connecting
+                        ? "disabled"
+                        : ""
+                    }
+                  >
+                    ${deviceOptions}
+                  </select>
+                `
+            }
 
           </div>
 
@@ -1511,9 +1542,24 @@ const LivePage = (() => {
       });
 
     root
-      .querySelectorAll(".camera-device-select")
+      .querySelectorAll("[id^='source-type-select-']")
       .forEach(select => {
         select.onchange = event => {
+          const slotId = Number(
+            event.target.id.split("-").pop()
+          );
+
+          slots[slotId].sourceType = event.target.value;
+          slots[slotId].device = "";
+          slots[slotId].error = "";
+          render();
+        };
+      });
+
+    root
+      .querySelectorAll("[id^='camera-select-']")
+      .forEach(el => {
+        const handler = event => {
           const slotId = Number(
             event.target.id.split("-").pop()
           );
@@ -1522,6 +1568,12 @@ const LivePage = (() => {
             event.target.value;
           slots[slotId].error = "";
         };
+
+        if (el.tagName === "INPUT") {
+          el.oninput = handler;
+        } else {
+          el.onchange = handler;
+        }
       });
 
     root
